@@ -81,7 +81,12 @@
         (if (clojure.string/ends-with? archive-name ".zip")
             (fsc/unzip (str from archive-name) to)
             (if (clojure.string/ends-with? archive-name ".tar.gz")
-                (fsc/untar (fsc/gunzip (str from archive-name)) to)
+                (do
+                    (println (str from archive-name))
+                    (println (fsc/gunzip (str from archive-name) "tmp/"))
+                    (println (str "tmp/" archive-name))
+                    (println (fsc/untar (str "tmp/" archive-name) to))
+                )
                 (if (clojure.string/ends-with? archive-name ".gz")
                     (fsc/gunzip (str from archive-name) to)
                     (if (clojure.string/ends-with? archive-name ".tar")
@@ -105,9 +110,11 @@
     ; (println (str "   " from "   " to ))
 
     (if (> (count (archives-in-dir from)))
-        (map (fn [o] (-main :from (str o "/") :to (str o "/")) )
-            (map (fn [n] (extract n from (str to (file-name-base n))))
-                (map (fn [m] (get-latest-version m from)) (files-set (archives-in-dir from)) )
+        (doall
+            (map (fn [o] (-main :from (str o "/") :to (str o "/")) )
+                (map (fn [n] (extract n from (str to (file-name-base n))))
+                    (map (fn [m] (get-latest-version m from)) (files-set (archives-in-dir from)) )
+                )
             )
         )
     )
@@ -115,30 +122,30 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defn find-files
-    "gets a set of unique base file names"
-    [file-list]
-    (for [x (map #(if (.exists (io/file %)))) y [".tar" ".gz" ".zip" ".rar"] :when (clojure.string/ends-with? x y)] x)
-    (map #(if (.exists (io/file %))
-        ([] into %)
-        (println (str % " not found"))
-        )
-    )
-    ; (set (map file-name-base file-list))
-)
+; (defn find-files
+;     "gets a set of unique base file names"
+;     [file-list]
+;     (for [x (map #(if (.exists (io/file %)))) y [".tar" ".gz" ".zip" ".rar"] :when (clojure.string/ends-with? x y)] x)
+;     (map #(if (.exists (io/file %))
+;         ([] into %)
+;         (println (str % " not found"))
+;         )
+;     )
+;     ; (set (map file-name-base file-list))
+; )
 
-(defn alt-main
-    "Extract some-file.tar.gz to ."
-    [& files]
+; (defn alt-main
+;     "Extract some-file.tar.gz to ."
+;     [& files]
 
-    (if (> (count (archives-in-dir from)))
-        (map (fn [o] (-main :from (str o "/") :to (str o "/")) :files files)
-            (map (fn [n] (extract n from (str to (file-name-base n))))
-                (map (fn [m] (get-latest-version m)) (find-files [files])
-            )
-        )
-    )
-)
+;     (if (> (count (archives-in-dir from)))
+;         (map (fn [o] (-main :from (str o "/") :to (str o "/")) :files files)
+;             (map (fn [n] (extract n from (str to (file-name-base n))))
+;                 (map (fn [m] (get-latest-version m)) (find-files [files])
+;             )
+;         )
+;     )
+; )
 
 ; Script should warn if a file is missing, and also which files were extracted
 ; Script should optionally delete the source data

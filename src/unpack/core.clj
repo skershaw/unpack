@@ -11,35 +11,29 @@
 ; (:import org.clojars.bonega.java-unrar)
 ; (import com.github.junrar)
 
-
 (def dl-directory "zipped-files/")
 (def target-directory "zipped-files/")
 
 (defn archives-in-dir
     "gets the names of archive files in target dir (returns lazy seq)"
     [dir]
-    (for [x (seq (.list (io/file dir))) y [".tar" ".gz" ".zip" ".rar"] :when (clojure.string/ends-with? x y)] x)
-)
+    (for [x (seq (.list (io/file dir))) y [".tar" ".gz" ".zip" ".rar"] :when (clojure.string/ends-with? x y)] x))
 
 (defn file-name-base
     "strips numbers and file ext from string"
     [file-str]
-    (clojure.string/replace file-str #"-?[0-9]*\..*" "")
-)
+    (clojure.string/replace file-str #"-?[0-9]*\..*" ""))
 
 (defn files-set
     "gets a set of unique base file names"
     [file-list]
-    (set (map file-name-base file-list))
-)
+    (set (map file-name-base file-list)))
 
 (defn get-file-versions
     "returns a lazy seq of files in folder whose names start with input string"
     [file-str folder]
     ; (do (println (str "get-file-versions " file-str " " folder))
-    (filter #(clojure.string/starts-with? % file-str) (archives-in-dir folder) )
-    ; )
-)
+    (filter #(clojure.string/starts-with? % file-str) (archives-in-dir folder)))
 
 (defn better-compare
     "compare str lengths, then values, so that abc-12 > abc-2. returns the greater str"
@@ -48,60 +42,91 @@
     (if (= (count a) (count b) )
         (if (> (compare a b) 0)
             a
-            b
-        )
+            b)
         (if (> (count a) (count b))
             a
-            b
-        )
-    )
-)
+            b)))
 
 (defn get-latest-version
     "get the latest version of file in folder. Not currently used"
     [filestr folder]
-    ; (do (println (str "get-latest-version " filestr " " folder))
-        (reduce better-compare (get-file-versions filestr folder))
-    ; )
-)
+        (reduce better-compare (get-file-versions filestr folder)))
+
+(defn glv-from-coll
+    [coll]
+    (first (filter #(.exists (io/file (str dl-directory %))) (reverse coll))))
 
 (defn make-dir
     "make directory if it does not exist yet"
     [dir-name]
     (#(if (not (and (.exists (io/file %)) (.isDirectory (io/file %))))
         (.mkdir (io/file %))
-    ) (file-name-base dir-name))
-)
+    ) (file-name-base dir-name)))
 
 (defn extract
     "supports .tar, .tar.gz, .gz, .zip; returns target dir, which is used in recursion."
     ; can't do .rar yet
-    [archive-name from to]
-    (if (.exists (io/file (str from archive-name)))
-        (if (clojure.string/ends-with? archive-name ".zip")
-            (fsc/unzip (str from archive-name) to)
-            (if (clojure.string/ends-with? archive-name ".tar.gz")
-                (do
-                    (println (str from archive-name))
-                    (println (fsc/gunzip (str from archive-name) "tmp/"))
-                    (println (str "tmp/" archive-name))
-                    (println (fsc/untar (str "tmp/" archive-name) to))
-                )
-                (if (clojure.string/ends-with? archive-name ".gz")
-                    (fsc/gunzip (str from archive-name) to)
-                    (if (clojure.string/ends-with? archive-name ".tar")
-                        (fsc/untar (str from archive-name) to)
-                        (if (clojure.string/ends-with? archive-name ".rar")
-                            (println ".rar")
-                            (println "nothing to extract")
-                        )
-                    )
-                )
-            )
-        )
-    (println (str from archive-name "does not exist"))
-    )
-)
+    [archive from to]
+    (cond
+        (clojure.string/ends-with? archive ".zip")
+            (fsc/unzip (str from archive) (str to (file-name-base archive) "/"))
+        (clojure.string/ends-with? archive ".rar")
+            ; (fsc/unzip (str from archive) to)
+            (println ".rar")
+        (clojure.string/ends-with? archive ".tar")
+            (do (fsc/untar (str from archive) (str to (file-name-base archive) "/"))
+                (str to (file-name-base archive)))
+        (clojure.string/ends-with? archive ".tar.gz")
+            (do (fsc/gunzip (str from archive) (str to (file-name-base archive) ".tar"))
+                (fsc/untar (str to (file-name-base archive) ".tar") (str to (file-name-base archive) "/"))
+                (io/delete-file (str to (file-name-base archive) ".tar"))
+                (str to (file-name-base archive)))
+        (clojure.string/ends-with? archive ".gz")
+            (do (fsc/gunzip (str from archive) (str to (file-name-base archive)))
+                (str to (file-name-base archive)))
+        :else (println "nothing to extract")))
+
+(defn extract-recursive
+    ([archive from to]
+    (extract-recursive (extract archive from to)))
+    ([dir]
+    (if (archives-in-dir dir)
+        (map #(extract-recursive % dir dir) (archives-in-dir dir)))))
+
+(defn files
+    "assumes input is a list of lists"
+    [coll & {:keys [from to] :or {from dl-directory to target-directory}}]
+    (->> coll
+        (map #(glv-from-coll %))
+        (map #(extract-recursive % from to))
+        (doall )))
+
+
+    ; (do
+    ; (extract-recursive (glv-from-coll (filter #(not (coll? %)) args)) dl-directory target-directory)
+    ; (if (filter coll? args) (map files (filter coll? args)))))
+
+
+
+
+;         (if (archives-in-dir (extract (glv-from-coll arg) dl-directory target-directory))
+;             (files ...))))
+
+;         (map (if (coll? %)
+;             )
+;         (if (.exists (io/file (str dl-directory arg)))
+;             (extract arg dl-directory target-directory))
+;         )
+
+; (extract (first (take-while #(.exists (io/file (str dl-directory %))) arg)) dl-directory target-directory)
+
+
+    ; check if input is a file or a list
+    ; if file; extract
+
+    ; if list; check args of list
+    ; if list, cond if last file exists, extract
+
 
 (defn -main
     "Extract some-file.tar.gz to ."
@@ -109,16 +134,25 @@
     ; the keys might have an impact on performance
     ; (println (str "   " from "   " to ))
 
-    (if (> (count (archives-in-dir from)))
-        (doall
-            (map (fn [o] (-main :from (str o "/") :to (str o "/")) )
-                (map (fn [n] (extract n from (str to (file-name-base n))))
-                    (map (fn [m] (get-latest-version m from)) (files-set (archives-in-dir from)) )
-                )
-            )
-        )
-    )
-)
+    (if (> (count (archives-in-dir from)) 0)
+        (->> (files-set (archives-in-dir from))
+            (map #(get-latest-version % from))
+            ; (map #(extract % from (str to (file-name-base %))))
+            (map #(extract % from to ))
+            (map #(-main :from (str % "/") :to (str % "/")))
+            (doall ))))
+
+    ; (if (> (count (archives-in-dir from)) 0)
+    ;     (doall
+    ;         (map (fn [o] (-main :from (str o "/") :to (str o "/")) )
+    ;             (map (fn [n] (extract n from (str to (file-name-base n))))
+    ;                 (map (fn [m] (get-latest-version m from)) (files-set (archives-in-dir from)) )
+    ;             )
+    ;         )
+    ;     )
+    ; )
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

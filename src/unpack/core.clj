@@ -1,3 +1,23 @@
+; move .lein to /user
+; set up sublime for clojure
+; The second answer here should help: http://stackoverflow.com/questions/6259573/how-do-i-access-jar-classes-from-within-my-clojure-program
+; https://8thlight.com/blog/colin-jones/2010/11/26/a-leiningen-tutorial.html
+
+
+; put in error handling (try)
+; specify full path of file (take out from), i.e.:
+;     (def data-files
+;     [[data/something-zipped.zip] [out]
+;      [data2/some-file.tar
+;       data2/some-newer-version.tar] [out2]])
+; option to delete archives
+; use pmap to make my code multi-threaded
+; take out recursion -- if a zipped file is in an archive, force the user to add two entries into the input instead
+; clojure single threaded constraint
+
+
+
+
 ; skip download step?
 ; http://stackoverflow.com/questions/32742744/how-to-download-a-file-and-unzip-it-from-memory-in-clojure
 (ns unpack.core
@@ -5,14 +25,16 @@
 
 (require '[me.raynes.fs.compression :as fsc] ; https://github.com/Raynes/fs/blob/master/src/me/raynes/fs/compression.clj
          '[clojure.java.io :as io]
-         ; '[com.github.junrar.junrar :as junrar]
-         ; '[org.clojars.bonega.java-unrar :as unrar]
+         '[junrar :as junrar]
+         ; '[java_unrar :as unrar]
          )
 ; (:import org.clojars.bonega.java-unrar)
 ; (import com.github.junrar)
 
 (def dl-directory "zipped-files/")
 (def target-directory "zipped-files/")
+
+
 
 (defn archives-in-dir
     "gets the names of archive files in target dir (returns lazy seq)"
@@ -95,7 +117,7 @@
 
 (defn files
     "assumes input is a list of lists"
-    [coll & {:keys [from to] :or {from dl-directory to target-directory}}]
+    [coll & {:keys [from to] :or {from "" to ""}}]
     (->> coll
         (map #(glv-from-coll %))
         (map #(extract-recursive % from to))
